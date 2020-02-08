@@ -1,0 +1,149 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+### Load data
+
+
+
+```{r load-data}
+load("brfss2013.RData")
+```
+
+
+
+* * *
+
+## Part 1: Data
+
+The BRFSS objective is to collect uniform, state-specific data on preventive health practices and risk behaviors that are linked to chronic diseases, injuries, and preventable infectious diseases that affect the adult population. Surveys are conducted over Landline as well as celluar to collect data pertaining to individuals. 
+This study is an observational study as it involves random sampling indiduals from various states and the study is largely generalizable or non institutionalized adults based on thier states. However, causality cannot be inferred from this study as no experiment was conducted nor was any random assignment used.
+
+* * *
+
+## Part 2: Research questions
+
+**Research quesion 1:** For this first question, I would like to establish whether there is a correlation between the extent of smoking and being diagnosed with a stroke. We are going to use the variables 'cvdstrk3'(have you ever been diagnosed with a stroke) and 'smokday2'(frequency of Days now smoking) as our primary variables. We will also be considering the observations where the person has smoked less than 100 cigarettes('smoke100') as people who do not smoke at all, as even if the frequency is high in these cases , the number of cigarettes are too low to be judged for this correlation.
+
+**Research quesion 2:** Insulin is well known to be extremely expensive in the United States. Hence I would like to find whether people consuming insulin struggle with expenses without medical coverage. And what percent of insulin takers have health coverage of some sort. For this study I will be using three variables, namely 'insulin'(whether the person is currently taking insulin ),'medscost'( could not get medicine due to cost) and 'hlthpln1'(Have Any Health Care Coverage).
+
+**Research quesion 3:** For our last question I would like to explore the relation between being a veteran and depression. This is a current major concern as veterans are a particularly vulnerable group for depression. I will be using the variables 'veteran3'(whether a person is a veteran) and 'menthlth' (Number Of Days Mental Health Not Good in the last month).
+
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+
+
+**Research quesion 1:**
+First, we make a table with our required variables
+```{r}
+smokers_stroke<- brfss2013 %>%
+  select(smoke100,cvdstrk3,smokday2)
+head(smokers_stroke)
+```
+
+Next we need to change all the observations with smoke100 with value 'No' to smokday2 'Not at all'
+
+```{r}
+smokers_stroke <- smokers_stroke%>%
+mutate(smokday2= ifelse(smoke100=='No',1,smokday2))
+```
+
+
+```{r}
+head(smokers_stroke)
+```
+```{r}
+smokers_stroke%>%
+  group_by(smokday2)%>%
+  summarize(count=n())
+```
+```{r}
+smokers_stroke<-smokers_stroke%>%
+  filter(!is.na(smokday2),!is.na(smoke100),!is.na(cvdstrk3))
+```
+Now we no longer need the smoke100 column so we remove it as the values can be inferred from the smokday2 column
+
+```{r}
+smoker_summary<-smokers_stroke%>%
+  group_by(cvdstrk3,smokday2)%>%
+  summarise(count=n())
+smoker_summary
+```
+Now that we have the summary of all possible condtions we can explore this data in its current form. Here we will use the percent stacked bar plot for getting a clear picture of the relation between smoking and getting a stroke. We use a percent stacked bar plot instead of a regular stacked bar plot as the number of smokers in this data set is a lot higher. Hence it makes sense to compare percentages.  
+
+```{r}
+ggplot(smoker_summary, aes(fill=smokday2, y=count, x=cvdstrk3)) + 
+    geom_bar(position="fill", stat="identity", width=0.75)
+
+```
+Looking at the plot above, unsurprisingly, there is a clear relation between smoking and strokes. We can see that a higher proportion of people who have gotten strokes smoke as compared to people who havent got strokes in both cases, smoking often as well as regularly.
+
+
+**Research quesion 2:**
+First, we need to remove all observational cases where insulin is not used. We also take out all unecessary variables in our dataset.
+
+
+```{r}
+insulin_cst<-brfss2013%>%
+  select(insulin,medscost,hlthpln1)
+insulin_cst<-insulin_cst%>%
+  filter(insulin=='Yes',!is.na(insulin),!is.na(medscost),!is.na(hlthpln1))
+insulin_summary<-insulin_cst%>%
+  group_by(insulin,hlthpln1,medscost)%>%
+  summarize(count=n())
+insulin_summary
+```
+We can ignore the rows which indicate that medication was not prescribed as we are only considering considering people taking medication i.e. insulin. 
+```{r}
+insulin_summary<-insulin_summary%>%
+  filter(medscost!='No medication was prescribed')
+  insulin_summary
+```
+Now finally we can plot the relation between medscost and hlthpln1 to see whether there is a relation between getting a healthplan and struggling with expenses due to medication.
+```{r}
+ggplot(insulin_summary, aes(fill=medscost, y=count, x=hlthpln1)) + 
+    geom_bar(position="fill", stat="identity", width=0.75)
+```
+Here we can easily see that diabetics using insulin with health coverage struggle much less financially as compared to those without healthplans.
+
+**Research quesion 3:**
+To establish the relationship between mental health and being a veteran, let us start with isolating the necessary variables from the database.
+```{r}
+mental_det<-brfss2013%>%
+  select(veteran3,menthlth)
+head(mental_det)
+```
+Next let us make a summary of all the data and removing all unaivable data as well as the rather odd 5000 days of mental non wellbeing which is an erorr, we also remove the value zero so as to make the graphs more understandable, as majority of both sides have given a value of zero rending the rest of the information unnoticable.
+```{r}
+mental_det<-mental_det%>%
+  filter(!is.na(veteran3),!is.na(menthlth),menthlth!=5000,menthlth!=0)
+mental_summary<-mental_det%>%
+  group_by(veteran3,menthlth)%>%
+  summarize(count=n())
+```
+
+Now to ploto the graph needed and to conduct an EDA, we can use a density plot so as to not let the number of observations play a role in our inference.
+
+
+
+```{r}
+ggplot(mental_det, aes(x=menthlth, fill =veteran3)) + geom_density(alpha=0.2)
+```
+The relationship cannot be accurately determined from the given data, however we can clearly infer that the number of veterans who feel depressed less than 5 days is a lot less than the number of non veterans who feel depressed less than five days. However further analysis and studies would be preffered before making a proper conclusion.
